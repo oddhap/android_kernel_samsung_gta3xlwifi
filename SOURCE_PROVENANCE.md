@@ -1,8 +1,9 @@
 # Kernel source provenance
 
 Upstream: https://github.com/gta3xlwifi-dev/android_kernel_gta3xlwifi
-Base commit: `00e4b9481434f9b0b644925a9bb2feaf3940219d` (the upstream repository has one root commit).
-The base commit is preserved in this repository, including COPYRIGHT/COPYING.
+Base commit: `00e4b9481434f9b0b644925a9bb2feaf3940219d` (the original checkout was shallow).
+The complete base file tree is imported as a source snapshot, including COPYING.
+Its original commit ID is recorded above; full upstream Git history is not imported.
 This is Samsung's SM-T510 Exynos 4.4.302 kernel; consult per-file license notices.
 
 The import removes 2282 tracked generated build files that `make
