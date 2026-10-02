@@ -1020,9 +1020,29 @@ static int register_pm_qos_misc(struct pm_qos_object *qos, struct dentry *d)
 	return misc_register(&qos->pm_qos_power_miscdev);
 }
 
+/* Dedicated framework endpoints keep the stock vendor nodes and labels intact.
+ * Both endpoints use the same per-open request lifetime as the existing ABI. */
+static struct {
+	struct miscdevice dev;
+	int qos_class;
+} framework_cpu_qos[] = {
+	{ .dev = { .minor = MISC_DYNAMIC_MINOR,
+		.name = "gta3xlwifi_cluster0_min", .fops = &pm_qos_power_fops },
+	  .qos_class = PM_QOS_CLUSTER0_FREQ_MIN },
+	{ .dev = { .minor = MISC_DYNAMIC_MINOR,
+		.name = "gta3xlwifi_cluster1_min", .fops = &pm_qos_power_fops },
+	  .qos_class = PM_QOS_CLUSTER1_FREQ_MIN },
+};
+
 static int find_pm_qos_object_by_minor(int minor)
 {
 	int pm_qos_class;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(framework_cpu_qos); i++) {
+		if (minor == framework_cpu_qos[i].dev.minor)
+			return framework_cpu_qos[i].qos_class;
+	}
 
 	for (pm_qos_class = PM_QOS_CPU_DMA_LATENCY;
 		pm_qos_class < PM_QOS_NUM_CLASSES; pm_qos_class++) {
@@ -1122,6 +1142,15 @@ static int __init pm_qos_power_init(void)
 		if (ret < 0) {
 			printk(KERN_ERR "pm_qos_param: %s setup failed\n",
 			       pm_qos_array[i]->name);
+			return ret;
+		}
+	}
+
+	for (i = 0; i < ARRAY_SIZE(framework_cpu_qos); i++) {
+		ret = misc_register(&framework_cpu_qos[i].dev);
+		if (ret < 0) {
+			while (i-- > 0)
+				misc_deregister(&framework_cpu_qos[i].dev);
 			return ret;
 		}
 	}
