@@ -3,3 +3,16 @@
 /workspace.xml
 .idea/
 
+
+# Out-of-tree builds and generated host artifacts
+*.o
+*.a
+*.ko
+*.cmd
+modules.builtin
+modules.order
+.config
+.config.old
+include/generated/
+arch/*/include/generated/
+security/samsung/defex_lsm/pack_rules
