@@ -99,15 +99,22 @@ static int mmc_rpmb_access(struct _mmc_rpmb_ctx *ctx, struct _mmc_rpmb_req *req)
 	if (bdev == NULL) {
 		bdev = blkdev_get_by_path(MMC_BLOCK_NAME,
 				FMODE_READ|FMODE_WRITE, NULL);
-		if (!bdev) {
-			dev_err(dev, "Fail to get block device for mmc srpmb\n");
-			return -EINVAL;
+		if (IS_ERR(bdev)) {
+			ret = PTR_ERR(bdev);
+			bdev = NULL;
+			update_rpmb_status_flag(ctx, req, RPMB_INVALID_COMMAND);
+			dev_err(dev, "Fail to get block device for mmc srpmb: %d\n", ret);
+			return ret;
 		}
 
 		disk = bdev->bd_disk;
 		fops = disk->fops;
-		if (!fops->srpmb_access) {
+		if (!fops->srpmb_access || !fops->get_card) {
 			dev_err(dev, "No function pointer for srpmb access\n");
+			blkdev_put(bdev, FMODE_READ | FMODE_WRITE);
+			bdev = NULL;
+			fops = NULL;
+			update_rpmb_status_flag(ctx, req, RPMB_INVALID_COMMAND);
 			return -ENOTTY;
 		}
 	}
