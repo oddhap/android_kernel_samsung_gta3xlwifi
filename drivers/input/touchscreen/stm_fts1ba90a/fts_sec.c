@@ -818,6 +818,66 @@ static ssize_t prox_power_off_store(struct device *dev,
 	return count;
 }
 
+/* The Android power backend only needs this boolean, not factory commands. */
+static ssize_t double_tap_to_wake_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
+	bool enabled;
+
+	mutex_lock(&info->device_mutex);
+	enabled = !!(info->lowpower_flag & FTS_MODE_DOUBLETAP_WAKEUP);
+	mutex_unlock(&info->device_mutex);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", enabled);
+}
+
+static ssize_t double_tap_to_wake_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
+	bool enabled;
+	u8 old_flags;
+	int ret;
+
+	if (!info->board->support_aot)
+		return -EOPNOTSUPP;
+	ret = kstrtobool(buf, &enabled);
+	if (ret)
+		return ret;
+	mutex_lock(&info->device_mutex);
+	if (!info->probe_done || info->shutdown_is_on_going) {
+		ret = -EAGAIN;
+		goto out;
+	}
+	old_flags = info->lowpower_flag;
+	if (enabled)
+		info->lowpower_flag |= FTS_MODE_DOUBLETAP_WAKEUP;
+	else
+		info->lowpower_flag &= ~FTS_MODE_DOUBLETAP_WAKEUP;
+#ifdef FTS_SUPPORT_SPONGELIB
+	/* POWERDOWN cannot accept I2C; start/close applies the pending flags. */
+	if (old_flags != info->lowpower_flag && info->use_sponge &&
+			info->fts_power_state != FTS_POWER_STATE_POWERDOWN) {
+		ret = info->fts_write_to_sponge(info, FTS_CMD_SPONGE_OFFSET_MODE,
+				&info->lowpower_flag, sizeof(info->lowpower_flag));
+		if (ret <= 0) {
+			info->lowpower_flag = old_flags;
+			ret = ret < 0 ? ret : -EIO;
+			goto out;
+		}
+	}
+#endif
+	ret = count;
+out:
+	mutex_unlock(&info->device_mutex);
+	return ret;
+}
+
+static DEVICE_ATTR(double_tap_to_wake, 0660,
+		double_tap_to_wake_show, double_tap_to_wake_store);
+
 static DEVICE_ATTR(ito_check, 0444, read_ito_check_show, NULL);
 static DEVICE_ATTR(raw_check, 0444, read_raw_check_show, NULL);
 static DEVICE_ATTR(multi_count, 0644, read_multi_count_show, clear_multi_count_store);
@@ -859,6 +919,7 @@ static struct attribute *sec_touch_facotry_attributes[] = {
 	&dev_attr_pressure_enable.attr,
 #endif
 	&dev_attr_support_feature.attr,
+	&dev_attr_double_tap_to_wake.attr,
 #ifdef FTS_SUPPORT_SPONGELIB
 	&dev_attr_get_lp_dump.attr,
 #endif
