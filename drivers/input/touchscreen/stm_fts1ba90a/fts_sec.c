@@ -875,6 +875,45 @@ out:
 	return ret;
 }
 
+/* Share the input core state with the original enabled attribute. */
+static ssize_t input_enabled_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
+	bool enabled;
+
+	if (!info->input_dev)
+		return -ENODEV;
+	mutex_lock(&info->input_dev->mutex);
+	enabled = !info->input_dev->disabled;
+	mutex_unlock(&info->input_dev->mutex);
+	return scnprintf(buf, PAGE_SIZE, "%d\n", enabled);
+}
+
+static ssize_t input_enabled_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct sec_cmd_data *sec = dev_get_drvdata(dev);
+	struct fts_ts_info *info = container_of(sec, struct fts_ts_info, sec);
+	bool enabled;
+	int ret;
+
+	ret = kstrtobool(buf, &enabled);
+	if (ret)
+		return ret;
+	if (!info->input_dev || !info->probe_done || !info->info_work_done ||
+			info->shutdown_is_on_going)
+		return -EAGAIN;
+	ret = input_set_enabled(info->input_dev, enabled);
+	if (ret)
+		return ret;
+	return count;
+}
+
+static DEVICE_ATTR(input_enabled, 0660,
+		input_enabled_show, input_enabled_store);
+
 static DEVICE_ATTR(double_tap_to_wake, 0660,
 		double_tap_to_wake_show, double_tap_to_wake_store);
 
@@ -920,6 +959,7 @@ static struct attribute *sec_touch_facotry_attributes[] = {
 #endif
 	&dev_attr_support_feature.attr,
 	&dev_attr_double_tap_to_wake.attr,
+	&dev_attr_input_enabled.attr,
 #ifdef FTS_SUPPORT_SPONGELIB
 	&dev_attr_get_lp_dump.attr,
 #endif

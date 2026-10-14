@@ -1163,6 +1163,13 @@ static int input_disable_device(struct input_dev *dev)
 	return 0;
 }
 
+/* Driver-local power controls share the users/disabled state and locking. */
+int input_set_enabled(struct input_dev *dev, bool enabled)
+{
+	return enabled ? input_enable_device(dev) : input_disable_device(dev);
+}
+EXPORT_SYMBOL_GPL(input_set_enabled);
+
 /*
  * Simulate keyup events for all keys that are marked as pressed.
  * The function must be called with dev->event_lock held.
